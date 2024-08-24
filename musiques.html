@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lire l'Audio YouTube</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Lire l'Audio YouTube</h1>
+    <div class="search-bar">
+      <input type="text" id="searchQuery" placeholder="Entrez le nom de la vidéo YouTube">
+      <button onclick="searchVideos()">Rechercher</button>
+    </div>
+    <div id="searchResults" class="search-results"></div>
+
+    <div id="player-controls">
+      <div class="controls">
+        <button class="control-button" onclick="playAudio()">&#9658;</button>
+        <button class="control-button" onclick="pauseAudio()">&#10074;&#10074;</button>
+        <button class="control-button" onclick="nextAudio()">Suivant</button>
+        <button class="control-button" onclick="downloadAudio()">Télécharger</button>
+      </div>
+      <div id="progress-bar" class="progress-bar" onclick="seek(event)">
+        <div id="progress" class="progress"></div>
+      </div>
+    </div>
+
+    <div id="player"></div>
+  </div>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #181818;
+      color: #fff;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container {
+      text-align: center;
+      width: 80%;
+      max-width: 800px;
+    }
+
+    h1 {
+      color: #1db954;
+      margin-top: 20px;
+    }
+
+    .search-bar {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+      margin-top: 90px;
+    }
+
+    .search-bar input {
+      width: 60%;
+      padding: 10px;
+      border: none;
+      border-radius: 50px 0 0 50px;
+      outline: none;
+    }
+
+    .search-bar button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 0 50px 50px 0;
+      background-color: #1db954;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .search-bar button:hover {
+      background-color: #148f3d;
+    }
+
+    .search-results {
+      margin-bottom: 20px;
+    }
+
+    .search-results div {
+      display: flex;
+      align-items: center;
+      background-color: #282828;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 8px;
+    }
+
+    .search-results img {
+      margin-right: 10px;
+      border-radius: 4px;
+    }
+
+    .search-results h3 {
+      flex-grow: 1;
+      margin: 0;
+    }
+
+    .search-results button {
+      padding: 5px 10px;
+      border: none;
+      border-radius: 20px;
+      background-color: #1db954;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .search-results button:hover {
+      background-color: #148f3d;
+    }
+
+    #player-controls {
+      display: none;
+      margin-top: 20px;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+
+    .control-button {
+      padding: 10px;
+      margin: 0 5px;
+      border: none;
+      border-radius: 50%;
+      background-color: #1db954;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .control-button:hover {
+      background-color: #148f3d;
+    }
+
+    .progress-bar {
+      width: 100%;
+      background-color: #404040;
+      height: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .progress {
+      background-color: #1db954;
+      height: 100%;
+      width: 0;
+      border-radius: 5px;
+    }
+  </style>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+    let player;
+    let currentVideoId = '';
+    let videoQueue = []; 
+    let currentIndex = 0;
+    let progressBar;
+    let progress;
+    let playerReady = false;
+
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        height: '0',
+        width: '0',
+        videoId: '',
+        events: {
+          'onReady': onPlayerReady,
+          'onStateChange': onPlayerStateChange
+        } 
+      });
+    }
+
+    function onPlayerReady(event) {
+      playerReady = true;
+      progressBar = document.getElementById('progress-bar');
+      progress = document.getElementById('progress');
+      // Met à jour la barre de progression toutes les 100 ms
+      setInterval(updateProgress, 100);
+    }
+
+    function onPlayerStateChange(event) {
+      if (event.data === YT.PlayerState.ENDED) {
+        nextAudio(); // Passer à la vidéo suivante lorsque la vidéo actuelle est terminée
+      }
+    }
+    function searchVideos() {
+      const query = document.getElementById('searchQuery').value;
+      const apiKey = 'AIzaSyAdbDdKtBVMp8CRitkRg64f5ZpF0U9d_EI';
+      
+      const apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=${query}&key=${apiKey}`;
+
+      fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+          const searchResults = document.getElementById('searchResults');
+          searchResults.innerHTML = '';
+
+          if (data.items.length > 0) {
+            videoQueue = data.items.map(video => video.id.videoId);
+            currentIndex = 0; // Réinitialiser l'index
+            data.items.forEach(video => {
+              const videoItem = document.createElement('div');
+              videoItem.innerHTML = `
+                <h3>${video.snippet.title}</h3>
+                <img src="${video.snippet.thumbnails.default.url}" alt="${video.snippet.title}">
+                <button onclick="selectVideo('${video.id.videoId}')">Sélectionner</button>
+              `;
+              searchResults.appendChild(videoItem);
+            });
+            document.getElementById('player-controls').style.display = 'block';
+          } else {
+            searchResults.innerHTML = 'Aucune vidéo trouvée.';
+          }
+        })
+        .catch(error => {
+          console.error('Erreur lors de la recherche des vidéos YouTube:', error);
+        });
+    }
+
+    function selectVideo(videoId) {
+      currentVideoId = videoId;
+      currentIndex = videoQueue.indexOf(videoId); // Mettre à jour l'index de la vidéo actuelle
+      playAudio();
+    }
+
+    function playAudio() {
+      if (playerReady) {
+        player.loadVideoById(currentVideoId);
+      }
+    }
+
+    function pauseAudio() {
+      if (playerReady) {
+        player.pauseVideo();
+      }
+    }
+
+    function nextAudio() {
+      if (playerReady) {
+        // Passer à la vidéo suivante dans la queue
+        currentIndex = (currentIndex + 1) % videoQueue.length;
+        currentVideoId = videoQueue[currentIndex];
+        playAudio();
+      }
+    }
+
+    function updateProgress() {
+      if (playerReady && player.getCurrentTime && player.getDuration) {
+        const currentTime = player.getCurrentTime();
+        const duration = player.getDuration();
+        const progressPercent = (currentTime / duration) * 100;
+        progress.style.width = `${progressPercent}%`;
+      }
+    }
+
+    function seek(event) {
+      if (playerReady) {
+        const rect = progressBar.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        const totalWidth = rect.width;
+        const seekTime = (offsetX / totalWidth) * player.getDuration();
+        player.seekTo(seekTime, true);
+      }
+    }
+
+    function downloadAudio() {
+      const downloadUrl = `https://www.youtube.com/watch?v=${currentVideoId}`;
+      // Simuler le téléchargement en ouvrant un nouvel onglet avec l'URL de la vidéo.
+      window.open(downloadUrl, '_blank');
+    }
+  </script>
+</body>
+</html>
